@@ -34,7 +34,10 @@ generateEdge :: [String] -> Edge
 generateEdge (e : (originNode : nodes)) = Edge e originNode (last nodes) "" []
 
 generateNode :: [String] -> Node
-generateNode (id : label) = Node id (last label) []
+generateNode (id : label) = Node id (last label) [] -- when def label works, we can generate node without label here
+
+generateLabel :: [String] -> Label
+generateLabel (id : label) = last label
 
 generateProp :: String -> String -> Prop
 generateProp = Prop
@@ -51,8 +54,14 @@ parseRhoFile file = map (generateEdge . parseLine) (parseFile file)
 filterNodes :: [Edge] -> [String] -> [String]
 filterNodes edges = filter (\x -> not $ edgeIsInside (head (parseLine x)) edges)
 
-parseLamdaFile :: String -> [Edge] -> [Node]
-parseLamdaFile file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
+filterLabels :: [Edge] -> [String] -> [String]
+filterLabels edges = filter (\x -> edgeIsInside (head (parseLine x)) edges)
+
+parseLamdaFileIntoNodes :: String -> [Edge] -> [Node]
+parseLamdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
+
+parseLambdaFileIntoLabels :: String -> [Edge] -> [Label]
+parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterNodes edges (parseFile file))
 
 -- PROPERTY GRAPHS METHODS
 
@@ -66,15 +75,26 @@ edgeIsInside edge (e : es) = edgeIsInside edge es || edgeIsEqual edge e
 hasEdge :: PG -> String -> Bool
 hasEdge (PG _ edges) edge = edgeIsInside edge edges
 
+setEdgeLabel :: Edge -> Label -> Maybe Edge
+setEdgeLabel (Edge e n1 n2 lab props) l
+  | not (null lab) = Nothing
+  | otherwise = Just $ Edge e n1 n2 l props
+
+setNodeLabel :: Node -> Label -> Maybe Node
+setNodeLabel (Node n lab props) l
+  | not (null lab) = Nothing
+  | otherwise = Just $ Node n l props
+
+{- defVlabel :: PG -> Node -> Label -> PG
+defVlabel pg node label =  -}
+
 populate :: String -> String -> String -> String -> PG
 populate rho lamda sigma props =
   let edges = parseRhoFile rho
-      nodes = parseLamdaFile lamda edges
+      nodes = parseLamdaFileIntoNodes lamda edges
    in PG nodes edges
 
---PG nodes edges
-
-{- addEdge :: PG -> Edge -> Prop -> PG
+{- addEdge :: PG -> Edge -> Node -> Node -> PG
 defVprop :: PG -> Node -> Prop -> PG
 defEProp :: PG -> Edge -> Prop -> PG
 defVlabel :: PG -> Node -> Prop -> PG
