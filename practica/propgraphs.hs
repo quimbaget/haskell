@@ -88,18 +88,22 @@ setNodeLabel (Node n lab props) l
 {- defVlabel :: PG -> Node -> Label -> PG
 defVlabel pg node label =  -}
 
+addEdge :: PG -> String -> String -> String -> PG
+addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
+
 populate :: String -> String -> String -> String -> PG
 populate rho lamda sigma props =
   let edges = parseRhoFile rho
       nodes = parseLamdaFileIntoNodes lamda edges
    in PG nodes edges
 
-{- addEdge :: PG -> Edge -> Node -> Node -> PG
-defVprop :: PG -> Node -> Prop -> PG
-defEProp :: PG -> Edge -> Prop -> PG
-defVlabel :: PG -> Node -> Prop -> PG
-defElabel :: PG -> Edge -> Prop -> PG
-showGraph :: PG -}
+{-
+    defVprop :: PG -> Node -> Prop -> PG
+    defEProp :: PG -> Edge -> Prop -> PG
+    defVlabel :: PG -> Node -> Prop -> PG
+    defElabel :: PG -> Edge -> Prop -> PG
+    showGraph :: PG
+-}
 
 main :: IO ()
 main = do
