@@ -55,9 +55,13 @@ parseFile = lines
 parseRhoFile :: String -> [Edge]
 parseRhoFile file = map (generateEdge . parseLine) (parseFile file)
 
+-- Given an array of edges and an array of strings each one representing a line
+-- returns the lines filtering out the edges provided
 filterNodes :: [Edge] -> [String] -> [String]
 filterNodes edges = filter (\x -> not $ edgeIsInside (head (parseLine x)) edges)
 
+-- Given an array of edges and an array of strings each one representing a line
+-- returns the lines that contains the edges provided
 filterLabels :: [Edge] -> [String] -> [String]
 filterLabels edges = filter (\x -> edgeIsInside (head (parseLine x)) edges)
 
@@ -73,9 +77,13 @@ parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterLa
 
 -- PROPERTY GRAPHS METHODS
 
+-- Given an ID and an Edge
+-- returns true if the edge id is the same as the one provded, false otherwise
 edgeHasId :: String -> Edge -> Bool
 edgeHasId edge (Edge id _ _ _ _) = edge == id
 
+-- Given an ID and a Node
+-- returns true if the node id is the same as the one provded, false otherwise
 nodeHasId :: String -> Node -> Bool
 nodeHasId node (Node id label props) = node == id
 
@@ -86,58 +94,95 @@ edgeIsInside :: String -> [Edge] -> Bool
 edgeIsInside _ [] = False
 edgeIsInside edge (e : es) = edgeIsInside edge es || edgeHasId edge e
 
+-- Given an edge an a label
+-- If edge's label is empty it returns a new edge with label property updated
+-- If edge's label has already a value, it returns nothing
 setEdgeLabel :: Edge -> Label -> Maybe Edge
 setEdgeLabel (Edge e n1 n2 lab props) l
   | not (null lab) = Nothing
   | otherwise = Just $ Edge e n1 n2 l props
 
+-- Given a node an a label
+-- If node's label is empty it returns a new node with label property updated
+-- If node's label has already a value, it returns nothing
 setNodeLabel :: Node -> Label -> Maybe Node
 setNodeLabel (Node n lab props) l
   | not (null lab) = Nothing
   | otherwise = Just $ Node n l props
 
+-- Given a grapgh PG and the ID of a node
+-- Returns NODE if there's a node with ID in PG
+-- Returns NOTHING otherwise
 searchNodeInGraph :: PG -> Id -> Maybe Node
 searchNodeInGraph (PG [] _) _ = Nothing
 searchNodeInGraph (PG (n : ns) _) id
   | nodeHasId id n = Just n
   | otherwise = searchNodeInGraph (PG ns []) id
 
+-- Given a grapgh PG and the ID of an edge
+-- Returns EDGE if there's an edge with ID in PG
+-- Returns NOTHING otherwise
 searchEdgeInGraph :: PG -> Id -> Maybe Edge
 searchEdgeInGraph (PG _ []) _ = Nothing
 searchEdgeInGraph (PG _ (e : es)) id
   | edgeHasId id e = Just e
   | otherwise = searchEdgeInGraph (PG [] es) id
 
+-- Given two nodes n1 and n2
+-- Returns TRUE if id of n1 is equal to id of n2
+-- Returns FALSE otherwise
 nodesAreEqual :: Node -> Node -> Bool
 nodesAreEqual (Node n1 _ _) (Node n2 _ _) = n1 == n2
 
+-- Given two edges e1 and e2
+-- Returns TRUE if id of n1 is equal to id of n2
+-- Returns FALSE otherwise
 edgesAreEqual :: Edge -> Edge -> Bool
 edgesAreEqual (Edge e1 _ _ _ _) (Edge e2 _ _ _ _) = e1 == e2
 
+-- Given a prop and an array of props
+-- Adds the new prop to the array if there's no prop with the same label
+-- Replaces the old prop from the array if there's a prop with the same label
+-- Returns the resulting array of props
 updateProp :: Prop -> [Prop] -> [Prop]
 updateProp prop [] = [prop]
 updateProp prop (p : ps)
   | propsAreEqual prop p = prop : ps
   | otherwise = p : updateProp prop ps
 
+-- Given a prop and an array of props
+-- Adds the new prop to the array if there's no prop with the same label
+-- Replaces the old prop from the array if there's a prop with the same label
+-- Returns the resulting array of props
 updateEdge :: Edge -> [Edge] -> [Edge]
 updateEdge e [] = [e]
 updateEdge e1 (e : es)
   | edgesAreEqual e1 e = e1 : es
   | otherwise = e : updateEdge e1 es
 
+-- Given a prop and an array of props
+-- Adds the new prop to the array if there's no prop with the same label
+-- Replaces the old prop from the array if there's a prop with the same label
+-- Returns the resulting array of props
 updateNode :: Node -> [Node] -> [Node]
 updateNode n [] = [n]
 updateNode n1 (n : ns)
   | nodesAreEqual n1 n = n1 : ns
   | otherwise = n : updateNode n1 ns
 
+-- Given a node and a prop
+-- Returns a new node with the props updated including prop
 updateNodeProps :: Node -> Prop -> Node
 updateNodeProps (Node n1 l props) p = Node n1 l $ updateProp p props
 
+-- Given an edge and a prop
+-- Returns a new edge with the props updated including prop
 updateEdgeProps :: Edge -> Prop -> Edge
 updateEdgeProps (Edge e1 n1 n2 l props) p = Edge e1 n1 n2 l $ updateProp p props
 
+-- Given a graph PG, a node and a prop
+-- Returns a new graph with the property prop of node changed if node is found
+-- Returns the same graph if node is not found
 defVprop :: PG -> Node -> Prop -> PG
 defVprop (PG ns es) (Node n lab props) prop =
   do
@@ -146,6 +191,9 @@ defVprop (PG ns es) (Node n lab props) prop =
       Nothing -> PG ns es
       Just node -> PG (updateNode (updateNodeProps node prop) ns) es
 
+-- Given a graph PG, a node and a label L
+-- Returns a new graph with node's label set to L if node is found and has not a label
+-- Returns an error message if node is not found or node has already a label set
 defVlabel :: PG -> Node -> Label -> Either String PG
 defVlabel (PG ns es) (Node n lab props) label =
   do
@@ -158,6 +206,9 @@ defVlabel (PG ns es) (Node n lab props) label =
           Just newNode -> Right (PG (updateNode newNode ns) es)
           Nothing -> Left "Error"
 
+-- Given a graph PG, an edge and a prop
+-- Returns a new graph with the property prop of edge changed if edge is found
+-- Returns the same graph if edge is not found
 defEprop :: PG -> Edge -> Prop -> PG
 defEprop (PG ns es) (Edge e n1 n2 lab props) prop =
   do
@@ -166,6 +217,9 @@ defEprop (PG ns es) (Edge e n1 n2 lab props) prop =
       Nothing -> PG ns es
       Just edge -> PG ns $ updateEdge (updateEdgeProps edge prop) es
 
+-- Given a graph PG, a edge and a label L
+-- Returns a new graph with edge's label set to L if edge is found and has not a label
+-- Returns an error message if edge is not found or edge has already a label set
 defElabel :: PG -> Edge -> Label -> Either String PG
 defElabel (PG ns es) (Edge e n1 n2 lab props) label =
   do
@@ -178,9 +232,13 @@ defElabel (PG ns es) (Edge e n1 n2 lab props) label =
           Just newEdge -> Right $ PG ns $ updateEdge newEdge es
           Nothing -> Left "Error"
 
+-- Given a graph PG, edge id e1, node id n1 and  node id n2
+-- Returns a new PG with a new edge e1 from n1 to n2 appended to PG's edges
 addEdge :: PG -> String -> String -> String -> PG
 addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
 
+-- Given 4 paths for: rhoFile, lambdaFile, sigmaFile and propFile
+-- Returns a graph PG created based on the files specifications
 populate :: String -> String -> String -> String -> PG
 populate rho lamda sigma props =
   let edges = parseRhoFile rho
