@@ -14,6 +14,14 @@ data Edge = Edge Id Id Id Label [Prop] deriving (Show)
 
 data PG = PG [Node] [Edge] deriving (Show)
 
+-- Given a tuple with two elements, returns the first one
+first :: (a, b) -> a
+first (x, y) = x
+
+-- Given a tuple with two elements, returns the second one
+second :: (a, b) -> b
+second (x, y) = y
+
 -- INSTANCES
 
 -- instance Show Prop where
@@ -249,12 +257,10 @@ defElabel (PG ns es) (Edge e n1 n2 lab props) label =
 addEdge :: PG -> String -> String -> String -> PG
 addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
 
-first :: (a, b) -> a
-first (x, y) = x
-
-second :: (a, b) -> b
-second (x, y) = y
-
+-- Given a tuple of edgeId and Label and an array of Edges
+-- where edgeId is inside
+-- we return edgeId from the array with Label applied
+-- or the edge if it already had a label
 setLabelToEdge :: (Id, Label) -> [Edge] -> Edge
 setLabelToEdge label (e : es)
   | edgeHasId (first label) e = do
@@ -264,16 +270,25 @@ setLabelToEdge label (e : es)
       Nothing -> e
   | otherwise = setLabelToEdge label es
 
+-- Given an array of tuples made of (edgeId, label) and an array of edges
+-- It returns a new array of edges where
+-- all edges with edgeId have now the label provided
 setLabelsToEdges :: [(Id, Label)] -> [Edge] -> [Edge]
 setLabelsToEdges [] es = es
 setLabelsToEdges _ [] = []
 setLabelsToEdges ls es = map (`setLabelToEdge` es) ls
 
+-- Given a graph and a list of tuples (id, prop) where
+-- id is the id of a node and prop is a Prop
+-- returns a grapgh with all the properties applied to the nodes of the graph
 setNodeProps :: PG -> [(Id, Prop)] -> PG
 setNodeProps =
   foldl
     (\pg p -> defVprop pg (Node (first p) "" []) (second p))
 
+-- Given a graph and a list of tuples (id, prop) where
+-- id is the id of an edge and prop is a Prop
+-- returns a grapgh with all the properties applied to the edges of the graph
 setEdgeProps :: PG -> [(Id, Prop)] -> PG
 setEdgeProps =
   foldl
@@ -290,9 +305,7 @@ populate rho lambda sigma props =
       edgeProps = parseSigmaFileIntoEdgeProps sigma edges
       edgesWithLabels = setLabelsToEdges labels edges
       pg = setEdgeProps (setNodeProps (PG nodes edgesWithLabels) nodeProps) edgeProps
-   in {-       pgWithNodeProps = setNodeProps pg nodeProps
-            pgWithEdgeProps = setEdgeProps pg edgeProps -}
-      pg
+   in pg
 
 -- MAIN FUNCTION
 
