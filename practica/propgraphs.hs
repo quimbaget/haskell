@@ -6,27 +6,27 @@ type Id = String
 
 -- CUSTOM DATA TYPES
 
-data Prop = Prop Label String
+data Prop = Prop Label String deriving (Show)
 
-data Node = Node Id Label [Prop]
+data Node = Node Id Label [Prop] deriving (Show)
 
-data Edge = Edge Id Id Id Label [Prop]
+data Edge = Edge Id Id Id Label [Prop] deriving (Show)
 
-data PG = PG [Node] [Edge]
+data PG = PG [Node] [Edge] deriving (Show)
 
 -- INSTANCES
 
-instance Show Prop where
-  show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
+-- instance Show Prop where
+--   show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
 
-instance Show Node where
-  show (Node id l props) = show id ++ "[" ++ show l ++ "]" ++ concatMap show props
+-- instance Show Node where
+--   show (Node id l props) = show id ++ "[" ++ show l ++ "]" ++ concatMap show props
 
-instance Show Edge where
-  show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props
+-- instance Show Edge where
+--   show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props
 
-instance Show PG where
-  show (PG nodes edges) = show $ map show nodes ++ map show edges
+-- instance Show PG where
+--   show (PG nodes edges) = show $ map show nodes ++ map show edges
 
 -- I/O FUNCTIONS AND PARSERS
 
@@ -36,8 +36,8 @@ generateEdge (e : (originNode : nodes)) = Edge e originNode (last nodes) "" []
 generateNode :: [String] -> Node
 generateNode (id : label) = Node id (last label) [] -- when def label works, we can generate node without label here
 
-generateLabel :: [String] -> Label
-generateLabel (id : label) = last label
+generateLabel :: [String] -> (Id, Label)
+generateLabel (id : label) = (id, last label)
 
 generateProp :: String -> String -> Prop
 generateProp = Prop
@@ -72,7 +72,7 @@ parselambdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNode
 
 -- Given a lambda file, it parses it into words, filtering out the nodes and
 -- creates labels with the resulting lines
-parseLambdaFileIntoLabels :: String -> [Edge] -> [Label]
+parseLambdaFileIntoLabels :: String -> [Edge] -> [(Id, Label)]
 parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterLabels edges (parseFile file))
 
 -- PROPERTY GRAPHS METHODS
@@ -237,6 +237,24 @@ defElabel (PG ns es) (Edge e n1 n2 lab props) label =
 addEdge :: PG -> String -> String -> String -> PG
 addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
 
+first (x, y) = x
+
+second (x, y) = y
+
+setLabelToEdge :: (Id, Label) -> [Edge] -> Edge
+setLabelToEdge label (e : es)
+  | edgeHasId (first label) e = do
+    let newEdge = setEdgeLabel e (second label)
+    case newEdge of
+      Just newEdge -> newEdge
+      Nothing -> e
+  | otherwise = setLabelToEdge label es
+
+setLabelsToEdges :: [(Id, Label)] -> [Edge] -> [Edge]
+setLabelsToEdges [] es = es
+setLabelsToEdges _ [] = []
+setLabelsToEdges ls es = map (`setLabelToEdge` es) ls
+
 -- Given 4 paths for: rhoFile, lambdaFile, sigmaFile and propFile
 -- Returns a graph PG created based on the files specifications
 populate :: String -> String -> String -> String -> PG
@@ -244,7 +262,8 @@ populate rho lambda sigma props =
   let edges = parseRhoFile rho
       nodes = parselambdaFileIntoNodes lambda edges
       labels = parseLambdaFileIntoLabels lambda edges
-   in PG nodes edges
+      edgesWithLabels = setLabelsToEdges labels edges
+   in PG nodes edgesWithLabels
 
 -- MAIN FUNCTION
 
