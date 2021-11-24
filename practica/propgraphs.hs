@@ -39,8 +39,8 @@ generateNode (id : label) = Node id (last label) [] -- when def label works, we 
 generateLabel :: [String] -> (Id, Label)
 generateLabel (id : label) = (id, last label)
 
-generateProp :: String -> String -> Prop
-generateProp = Prop
+generateProp :: [String] -> (Id, Prop)
+generateProp (id : (l : value)) = (id, Prop l (last value))
 
 -- Given a string which represents a line, it filters the line creating an array of string
 -- which is splitted at every whitespace of the line
@@ -55,6 +55,12 @@ parseFile = lines
 parseRhoFile :: String -> [Edge]
 parseRhoFile file = map (generateEdge . parseLine) (parseFile file)
 
+parseSigmaFileIntoNodeProps :: String -> [Edge] -> [(Id, Prop)]
+parseSigmaFileIntoNodeProps file edges = map (generateProp . parseLine) (filterNodes edges (parseFile file))
+
+parseSigmaFileIntoEdgeProps :: String -> [Edge] -> [(Id, Prop)]
+parseSigmaFileIntoEdgeProps file edges = map (generateProp . parseLine) (filterLabels edges (parseFile file))
+
 -- Given an array of edges and an array of strings each one representing a line
 -- returns the lines filtering out the edges provided
 filterNodes :: [Edge] -> [String] -> [String]
@@ -67,8 +73,8 @@ filterLabels edges = filter (\x -> edgeIsInside (head (parseLine x)) edges)
 
 -- Given a lambda file, it parses it into words, filters out the edges and creates nodes
 -- with the resulting lines
-parselambdaFileIntoNodes :: String -> [Edge] -> [Node]
-parselambdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
+parseLambdaFileIntoNodes :: String -> [Edge] -> [Node]
+parseLambdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
 
 -- Given a lambda file, it parses it into words, filtering out the nodes and
 -- creates labels with the resulting lines
@@ -87,9 +93,15 @@ edgeHasId edge (Edge id _ _ _ _) = edge == id
 nodeHasId :: String -> Node -> Bool
 nodeHasId node (Node id label props) = node == id
 
+-- Given prop1 and prop2
+-- Returns TRUE if label of prop1 is the same as label of prop2
+-- Reeturns FALSE otherwise
 propsAreEqual :: Prop -> Prop -> Bool
 propsAreEqual (Prop l1 _) (Prop l2 _) = l1 == l2
 
+-- Given an edge id e1 and a string og edges es
+-- Returns TRUE if e1 is inside es
+-- Returns FALSE otherwise
 edgeIsInside :: String -> [Edge] -> Bool
 edgeIsInside _ [] = False
 edgeIsInside edge (e : es) = edgeIsInside edge es || edgeHasId edge e
@@ -237,8 +249,10 @@ defElabel (PG ns es) (Edge e n1 n2 lab props) label =
 addEdge :: PG -> String -> String -> String -> PG
 addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
 
+first :: (a, b) -> a
 first (x, y) = x
 
+second :: (a, b) -> b
 second (x, y) = y
 
 setLabelToEdge :: (Id, Label) -> [Edge] -> Edge
@@ -255,15 +269,30 @@ setLabelsToEdges [] es = es
 setLabelsToEdges _ [] = []
 setLabelsToEdges ls es = map (`setLabelToEdge` es) ls
 
+setNodeProps :: PG -> [(Id, Prop)] -> PG
+setNodeProps =
+  foldl
+    (\pg p -> defVprop pg (Node (first p) "" []) (second p))
+
+setEdgeProps :: PG -> [(Id, Prop)] -> PG
+setEdgeProps =
+  foldl
+    (\pg p -> defEprop pg (Edge (first p) "" "" "" []) (second p))
+
 -- Given 4 paths for: rhoFile, lambdaFile, sigmaFile and propFile
 -- Returns a graph PG created based on the files specifications
 populate :: String -> String -> String -> String -> PG
 populate rho lambda sigma props =
   let edges = parseRhoFile rho
-      nodes = parselambdaFileIntoNodes lambda edges
+      nodes = parseLambdaFileIntoNodes lambda edges
       labels = parseLambdaFileIntoLabels lambda edges
+      nodeProps = parseSigmaFileIntoNodeProps sigma edges
+      edgeProps = parseSigmaFileIntoEdgeProps sigma edges
       edgesWithLabels = setLabelsToEdges labels edges
-   in PG nodes edgesWithLabels
+      pg = setEdgeProps (setNodeProps (PG nodes edgesWithLabels) nodeProps) edgeProps
+   in {-       pgWithNodeProps = setNodeProps pg nodeProps
+            pgWithEdgeProps = setEdgeProps pg edgeProps -}
+      pg
 
 -- MAIN FUNCTION
 
@@ -277,13 +306,14 @@ main = do
   path <- getLine
   lambdaFile <- readFile path
 
-  {-   putStrLn "Input sigmaFile"
-    path <- getLine
-    sigmaFile <- readFile path
+  putStrLn "Input sigmaFile"
+  path <- getLine
+  sigmaFile <- readFile path
 
-    putStrLn "Input propFile"
+  {-  putStrLn "Input propFile"
     path <- getLine
     propFile <- readFile path -}
 
-  let pg = populate rhoFile lambdaFile "sigmaFile" "propFile"
+  let pg = populate rhoFile lambdaFile sigmaFile "propFile"
   print pg
+  main
