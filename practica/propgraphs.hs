@@ -67,8 +67,8 @@ filterLabels edges = filter (\x -> edgeIsInside (head (parseLine x)) edges)
 
 -- Given a lambda file, it parses it into words, filters out the edges and creates nodes
 -- with the resulting lines
-parseLamdaFileIntoNodes :: String -> [Edge] -> [Node]
-parseLamdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
+parselambdaFileIntoNodes :: String -> [Edge] -> [Node]
+parselambdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
 
 -- Given a lambda file, it parses it into words, filtering out the nodes and
 -- creates labels with the resulting lines
@@ -240,10 +240,10 @@ addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
 -- Given 4 paths for: rhoFile, lambdaFile, sigmaFile and propFile
 -- Returns a graph PG created based on the files specifications
 populate :: String -> String -> String -> String -> PG
-populate rho lamda sigma props =
+populate rho lambda sigma props =
   let edges = parseRhoFile rho
-      nodes = parseLamdaFileIntoNodes lamda edges
-      labels = parseLambdaFileIntoLabels lamda edges
+      nodes = parselambdaFileIntoNodes lambda edges
+      labels = parseLambdaFileIntoLabels lambda edges
    in PG nodes edges
 
 -- MAIN FUNCTION
@@ -254,9 +254,9 @@ main = do
   path <- getLine
   rhoFile <- readFile path
 
-  putStrLn "Input lamdaFile"
+  putStrLn "Input lambdaFile"
   path <- getLine
-  lamdaFile <- readFile path
+  lambdaFile <- readFile path
 
   {-   putStrLn "Input sigmaFile"
     path <- getLine
@@ -266,5 +266,5 @@ main = do
     path <- getLine
     propFile <- readFile path -}
 
-  let pg = populate rhoFile lamdaFile "sigmaFile" "propFile"
+  let pg = populate rhoFile lambdaFile "sigmaFile" "propFile"
   print pg
