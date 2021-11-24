@@ -6,27 +6,27 @@ type Id = String
 
 -- CUSTOM DATA TYPES
 
-data Prop = Prop Label String deriving (Show)
+data Prop = Prop Label String
 
-data Node = Node Id Label [Prop] deriving (Show)
+data Node = Node Id Label [Prop]
 
-data Edge = Edge Id Id Id Label [Prop] deriving (Show) -- Edge Id, origin node ID, destination node ID, list of props
+data Edge = Edge Id Id Id Label [Prop]
 
-data PG = PG [Node] [Edge] deriving (Show)
+data PG = PG [Node] [Edge]
 
 -- POPERTY GRAPH (PG) INSTANCES
 
-{- instance Show Prop where
+instance Show Prop where
   show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
 
 instance Show Node where
   show (Node id l props) = show id ++ "[" ++ show l ++ "]" ++ concatMap show props
 
 instance Show Edge where
-  show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props -}
+  show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props
 
-{- instance Show PG where
-  show (PG nodes edges) = (map show nodes) ++ (map show edges) -}
+instance Show PG where
+  show (PG nodes edges) = show $ map show nodes ++ map show edges
 
 -- I/O FUNCTIONS
 
@@ -68,12 +68,15 @@ parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterNo
 edgeIsEqual :: String -> Edge -> Bool
 edgeIsEqual edge (Edge id _ _ _ _) = edge == id
 
+nodeIsEqual :: String -> Node -> Bool
+nodeIsEqual node (Node id label props) = node == id
+
+propIsEqual :: Prop -> Prop -> Bool
+propIsEqual (Prop l1 _) (Prop l2 _) = l1 == l2
+
 edgeIsInside :: String -> [Edge] -> Bool
 edgeIsInside _ [] = False
 edgeIsInside edge (e : es) = edgeIsInside edge es || edgeIsEqual edge e
-
-hasEdge :: PG -> String -> Bool
-hasEdge (PG _ edges) edge = edgeIsInside edge edges
 
 setEdgeLabel :: Edge -> Label -> Maybe Edge
 setEdgeLabel (Edge e n1 n2 lab props) l
@@ -85,8 +88,92 @@ setNodeLabel (Node n lab props) l
   | not (null lab) = Nothing
   | otherwise = Just $ Node n l props
 
-{- defVlabel :: PG -> Node -> Label -> PG
-defVlabel pg node label =  -}
+getNodeLabel :: Node -> Maybe Label
+getNodeLabel (Node _ lab _)
+  | not (null lab) = Just lab
+  | otherwise = Nothing
+
+searchNodeInGraph :: PG -> Id -> Maybe Node
+searchNodeInGraph (PG [] _) _ = Nothing
+searchNodeInGraph (PG (n : ns) _) id
+  | nodeIsEqual id n = Just n
+  | otherwise = searchNodeInGraph (PG ns []) id
+
+searchEdgeInGraph :: PG -> Id -> Maybe Edge
+searchEdgeInGraph (PG _ []) _ = Nothing
+searchEdgeInGraph (PG _ (e : es)) id
+  | edgeIsEqual id e = Just e
+  | otherwise = searchEdgeInGraph (PG [] es) id
+
+nodesAreEqual :: Node -> Node -> Bool
+nodesAreEqual (Node n1 _ _) (Node n2 _ _) = n1 == n2
+
+edgesAreEqual :: Edge -> Edge -> Bool
+edgesAreEqual (Edge e1 _ _ _ _) (Edge e2 _ _ _ _) = e1 == e2
+
+updateProp :: Prop -> [Prop] -> [Prop]
+updateProp prop [] = [prop]
+updateProp prop (p : ps)
+  | propIsEqual prop p = prop : ps
+  | otherwise = p : updateProp prop ps
+
+updateNode :: Node -> [Node] -> [Node]
+updateNode n [] = [n]
+updateNode n1 (n : ns)
+  | nodesAreEqual n1 n = n1 : ns
+  | otherwise = n : updateNode n1 ns
+
+updateNodeProps :: Node -> Prop -> Node
+updateNodeProps (Node n1 l props) p = Node n1 l $ updateProp p props
+
+defVprop :: PG -> Node -> Prop -> PG
+defVprop (PG ns es) (Node n lab props) prop =
+  do
+    let node = searchNodeInGraph (PG ns es) n
+    case node of
+      Nothing -> PG ns es
+      Just node -> PG (updateNode (updateNodeProps node prop) ns) es
+
+defVlabel :: PG -> Node -> Label -> Either String PG
+defVlabel (PG ns es) (Node n lab props) label =
+  do
+    let node = searchNodeInGraph (PG ns es) n
+    case node of
+      Nothing -> Left "Error"
+      Just node -> do
+        let newNode = setNodeLabel node lab
+        case newNode of
+          Just newNode -> Right (PG (updateNode newNode ns) es)
+          Nothing -> Left "Error"
+
+updateEdge :: Edge -> [Edge] -> [Edge]
+updateEdge e [] = [e]
+updateEdge e1 (e : es)
+  | edgesAreEqual e1 e = e1 : es
+  | otherwise = e : updateEdge e1 es
+
+updateEdgeProps :: Edge -> Prop -> Edge
+updateEdgeProps (Edge e1 n1 n2 l props) p = Edge e1 n1 n2 l $ updateProp p props
+
+defEprop :: PG -> Edge -> Prop -> PG
+defEprop (PG ns es) (Edge e n1 n2 lab props) prop =
+  do
+    let edge = searchEdgeInGraph (PG ns es) e
+    case edge of
+      Nothing -> PG ns es
+      Just edge -> PG ns $ updateEdge (updateEdgeProps edge prop) es
+
+defElabel :: PG -> Edge -> Label -> Either String PG
+defElabel (PG ns es) (Edge e n1 n2 lab props) label =
+  do
+    let edge = searchEdgeInGraph (PG ns es) e
+    case edge of
+      Nothing -> Left "Error"
+      Just edge -> do
+        let newEdge = setEdgeLabel edge lab
+        case newEdge of
+          Just newEdge -> Right $ PG ns $ updateEdge newEdge es
+          Nothing -> Left "Error"
 
 addEdge :: PG -> String -> String -> String -> PG
 addEdge (PG nodes edges) e n1 n2 = PG nodes (Edge e n1 n2 "" [] : edges)
@@ -96,14 +183,6 @@ populate rho lamda sigma props =
   let edges = parseRhoFile rho
       nodes = parseLamdaFileIntoNodes lamda edges
    in PG nodes edges
-
-{-
-    defVprop :: PG -> Node -> Prop -> PG
-    defEProp :: PG -> Edge -> Prop -> PG
-    defVlabel :: PG -> Node -> Prop -> PG
-    defElabel :: PG -> Edge -> Prop -> PG
-    showGraph :: PG
--}
 
 main :: IO ()
 main = do
