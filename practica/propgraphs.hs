@@ -14,7 +14,7 @@ data Edge = Edge Id Id Id Label [Prop]
 
 data PG = PG [Node] [Edge]
 
--- POPERTY GRAPH (PG) INSTANCES
+-- INSTANCES
 
 instance Show Prop where
   show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
@@ -28,7 +28,7 @@ instance Show Edge where
 instance Show PG where
   show (PG nodes edges) = show $ map show nodes ++ map show edges
 
--- I/O FUNCTIONS
+-- I/O FUNCTIONS AND PARSERS
 
 generateEdge :: [String] -> Edge
 generateEdge (e : (originNode : nodes)) = Edge e originNode (last nodes) "" []
@@ -42,12 +42,16 @@ generateLabel (id : label) = last label
 generateProp :: String -> String -> Prop
 generateProp = Prop
 
+-- Given a string which represents a line, it filters the line creating an array of string
+-- which is splitted at every whitespace of the line
 parseLine :: String -> [String]
 parseLine = words
 
+-- Given a filepath, creates an array of strings which represent every line of the file
 parseFile :: String -> [String]
 parseFile = lines
 
+-- Given a Rho file it parses it into an array of edges without label or props
 parseRhoFile :: String -> [Edge]
 parseRhoFile file = map (generateEdge . parseLine) (parseFile file)
 
@@ -57,26 +61,30 @@ filterNodes edges = filter (\x -> not $ edgeIsInside (head (parseLine x)) edges)
 filterLabels :: [Edge] -> [String] -> [String]
 filterLabels edges = filter (\x -> edgeIsInside (head (parseLine x)) edges)
 
+-- Given a lambda file, it parses it into words, filters out the edges and creates nodes
+-- with the resulting lines
 parseLamdaFileIntoNodes :: String -> [Edge] -> [Node]
 parseLamdaFileIntoNodes file edges = map (generateNode . parseLine) (filterNodes edges (parseFile file))
 
+-- Given a lambda file, it parses it into words, filtering out the nodes and
+-- creates labels with the resulting lines
 parseLambdaFileIntoLabels :: String -> [Edge] -> [Label]
-parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterNodes edges (parseFile file))
+parseLambdaFileIntoLabels file edges = map (generateLabel . parseLine) (filterLabels edges (parseFile file))
 
 -- PROPERTY GRAPHS METHODS
 
-edgeIsEqual :: String -> Edge -> Bool
-edgeIsEqual edge (Edge id _ _ _ _) = edge == id
+edgeHasId :: String -> Edge -> Bool
+edgeHasId edge (Edge id _ _ _ _) = edge == id
 
-nodeIsEqual :: String -> Node -> Bool
-nodeIsEqual node (Node id label props) = node == id
+nodeHasId :: String -> Node -> Bool
+nodeHasId node (Node id label props) = node == id
 
-propIsEqual :: Prop -> Prop -> Bool
-propIsEqual (Prop l1 _) (Prop l2 _) = l1 == l2
+propsAreEqual :: Prop -> Prop -> Bool
+propsAreEqual (Prop l1 _) (Prop l2 _) = l1 == l2
 
 edgeIsInside :: String -> [Edge] -> Bool
 edgeIsInside _ [] = False
-edgeIsInside edge (e : es) = edgeIsInside edge es || edgeIsEqual edge e
+edgeIsInside edge (e : es) = edgeIsInside edge es || edgeHasId edge e
 
 setEdgeLabel :: Edge -> Label -> Maybe Edge
 setEdgeLabel (Edge e n1 n2 lab props) l
@@ -88,21 +96,16 @@ setNodeLabel (Node n lab props) l
   | not (null lab) = Nothing
   | otherwise = Just $ Node n l props
 
-getNodeLabel :: Node -> Maybe Label
-getNodeLabel (Node _ lab _)
-  | not (null lab) = Just lab
-  | otherwise = Nothing
-
 searchNodeInGraph :: PG -> Id -> Maybe Node
 searchNodeInGraph (PG [] _) _ = Nothing
 searchNodeInGraph (PG (n : ns) _) id
-  | nodeIsEqual id n = Just n
+  | nodeHasId id n = Just n
   | otherwise = searchNodeInGraph (PG ns []) id
 
 searchEdgeInGraph :: PG -> Id -> Maybe Edge
 searchEdgeInGraph (PG _ []) _ = Nothing
 searchEdgeInGraph (PG _ (e : es)) id
-  | edgeIsEqual id e = Just e
+  | edgeHasId id e = Just e
   | otherwise = searchEdgeInGraph (PG [] es) id
 
 nodesAreEqual :: Node -> Node -> Bool
@@ -114,8 +117,14 @@ edgesAreEqual (Edge e1 _ _ _ _) (Edge e2 _ _ _ _) = e1 == e2
 updateProp :: Prop -> [Prop] -> [Prop]
 updateProp prop [] = [prop]
 updateProp prop (p : ps)
-  | propIsEqual prop p = prop : ps
+  | propsAreEqual prop p = prop : ps
   | otherwise = p : updateProp prop ps
+
+updateEdge :: Edge -> [Edge] -> [Edge]
+updateEdge e [] = [e]
+updateEdge e1 (e : es)
+  | edgesAreEqual e1 e = e1 : es
+  | otherwise = e : updateEdge e1 es
 
 updateNode :: Node -> [Node] -> [Node]
 updateNode n [] = [n]
@@ -125,6 +134,9 @@ updateNode n1 (n : ns)
 
 updateNodeProps :: Node -> Prop -> Node
 updateNodeProps (Node n1 l props) p = Node n1 l $ updateProp p props
+
+updateEdgeProps :: Edge -> Prop -> Edge
+updateEdgeProps (Edge e1 n1 n2 l props) p = Edge e1 n1 n2 l $ updateProp p props
 
 defVprop :: PG -> Node -> Prop -> PG
 defVprop (PG ns es) (Node n lab props) prop =
@@ -145,15 +157,6 @@ defVlabel (PG ns es) (Node n lab props) label =
         case newNode of
           Just newNode -> Right (PG (updateNode newNode ns) es)
           Nothing -> Left "Error"
-
-updateEdge :: Edge -> [Edge] -> [Edge]
-updateEdge e [] = [e]
-updateEdge e1 (e : es)
-  | edgesAreEqual e1 e = e1 : es
-  | otherwise = e : updateEdge e1 es
-
-updateEdgeProps :: Edge -> Prop -> Edge
-updateEdgeProps (Edge e1 n1 n2 l props) p = Edge e1 n1 n2 l $ updateProp p props
 
 defEprop :: PG -> Edge -> Prop -> PG
 defEprop (PG ns es) (Edge e n1 n2 lab props) prop =
@@ -182,7 +185,10 @@ populate :: String -> String -> String -> String -> PG
 populate rho lamda sigma props =
   let edges = parseRhoFile rho
       nodes = parseLamdaFileIntoNodes lamda edges
+      labels = parseLambdaFileIntoLabels lamda edges
    in PG nodes edges
+
+-- MAIN FUNCTION
 
 main :: IO ()
 main = do
