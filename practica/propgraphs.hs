@@ -6,13 +6,13 @@ type Id = String
 
 -- CUSTOM DATA TYPES
 
-data Prop = Prop Label String deriving (Show)
+data Prop = Prop Label String
 
-data Node = Node Id Label [Prop] deriving (Show)
+data Node = Node Id Label [Prop]
 
-data Edge = Edge Id Id Id Label [Prop] deriving (Show)
+data Edge = Edge Id Id Id Label [Prop]
 
-data PG = PG [Node] [Edge] deriving (Show)
+data PG = PG [Node] [Edge]
 
 -- Given a tuple with two elements, returns the first one
 first :: (a, b) -> a
@@ -24,19 +24,23 @@ second (x, y) = y
 
 -- INSTANCES
 
--- instance Show Prop where
---   show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
+instance Show Prop where
+  show (Prop l s) = "(" ++ show l ++ "," ++ show s ++ ")"
 
--- instance Show Node where
---   show (Node id l props) = show id ++ "[" ++ show l ++ "]" ++ concatMap show props
+instance Show Node where
+  show (Node id l props) = show id ++ "[" ++ show l ++ "]" ++ concatMap show props ++ "\n"
 
--- instance Show Edge where
---   show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props
+instance Show Edge where
+  show (Edge id n1 n2 label props) = "(" ++ show n1 ++ ") - " ++ show id ++ "[" ++ label ++ "] -> (" ++ show n2 ++ ")" ++ concatMap show props ++ "\n"
 
--- instance Show PG where
---   show (PG nodes edges) = show $ map show nodes ++ map show edges
+instance Show PG where
+  show (PG nodes edges) = show $ map show nodes ++ map show edges
 
 -- I/O FUNCTIONS AND PARSERS
+
+-- Given a graph PG it prints it
+showGraph :: PG -> IO ()
+showGraph = print
 
 generateEdge :: [String] -> Edge
 generateEdge (e : (originNode : nodes)) = Edge e originNode (last nodes) "" []
@@ -307,7 +311,80 @@ populate rho lambda sigma props =
       pg = setEdgeProps (setNodeProps (PG nodes edgesWithLabels) nodeProps) edgeProps
    in pg
 
+-- QUERIES
+
+-- Given a Node it returns the props of it
+getNodeProps :: Node -> [Prop]
+getNodeProps (Node _ _ props) = props
+
+-- Given an Edge it returns the props of it
+getEdgeProps :: Edge -> [Prop]
+getEdgeProps (Edge _ _ _ _ props) = props
+
+-- Given a grapg pg, an integer k and an Id
+-- Returns the first k props of the node with Id in pg
+propV :: PG -> Int -> Id -> [Prop]
+propV (PG [] _) _ _ = []
+propV pg k id = do
+  let node = searchNodeInGraph pg id
+  case node of
+    Nothing -> []
+    Just node -> take k $ getNodeProps node
+
+-- Given a grapg pg, an integer k and an Id
+-- Returns the first k props of the edge with Id in pg
+propE :: PG -> Int -> Id -> [Prop]
+propE (PG [] _) _ _ = []
+propE pg k id = do
+  let edge = searchEdgeInGraph pg id
+  case edge of
+    Nothing -> []
+    Just edge -> take k $ getEdgeProps edge
+
+-- Given a graph and an Id
+-- Returns the first prop of the Node or Edge with id == Id
+-- Reurns Nothing if any Edge or Node was found with the Id provided
+sigmaQuery :: PG -> Id -> Maybe [Prop]
+sigmaQuery (PG [] []) _ = Nothing
+sigmaQuery (PG (n : ns) es) id = do
+  let node = searchNodeInGraph (PG (n : ns) es) id
+  case node of
+    Nothing -> sigmaQuery (PG ns es) id
+    Just node -> Just $ getNodeProps node
+sigmaQuery (PG [] (e : es)) id = do
+  let edge = searchEdgeInGraph (PG [] (e : es)) id
+  case edge of
+    Nothing -> sigmaQuery (PG [] es) id
+    Just edge -> Just $ getEdgeProps edge
+
 -- MAIN FUNCTION
+
+script :: PG -> IO ()
+script pg = do
+  showGraph pg
+
+  -- PRINT GRAPH
+  showGraph pg
+
+  -- ASK FOR QUERY
+
+  putStrLn "-> Input an ID to run sigma query:"
+  id <- getLine
+  print $ sigmaQuery pg id
+
+  putStrLn "-> Input an ID to run propE:"
+  id <- getLine
+  putStrLn "-> Input K (number):"
+  x <- getLine
+  print $ propE pg (read x) id
+
+  putStrLn "-> Input an ID to run propV:"
+  id <- getLine
+  putStrLn "-> Input K (number):"
+  x <- getLine
+  print $ propV pg (read x) id
+
+  script pg
 
 main :: IO ()
 main = do
@@ -328,5 +405,5 @@ main = do
     propFile <- readFile path -}
 
   let pg = populate rhoFile lambdaFile sigmaFile "propFile"
-  print pg
-  main
+  showGraph pg
+  script pg
